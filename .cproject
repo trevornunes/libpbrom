@@ -33,7 +33,7 @@
 								</option>
 								<option id="com.qnx.qcc.option.compiler.warningLevel.1178266176" name="Warning Level (-w)" superClass="com.qnx.qcc.option.compiler.warningLevel" value="com.qnx.qcc.option.warningLevel.4" valueType="enumerated"/>
 								<option id="com.qnx.qcc.option.compiler.optlevel.1499996672" name="Optimization Level" superClass="com.qnx.qcc.option.compiler.optlevel" value="com.qnx.qcc.option.compiler.optlevel.none" valueType="enumerated"/>
-								<option id="com.qnx.qcc.option.compiler.ccoptions.371297424" superClass="com.qnx.qcc.option.compiler.ccoptions" valueType="stringList">
+								<option id="com.qnx.qcc.option.compiler.ccoptions.371297424" name="Compiler Options (-Wc,)" superClass="com.qnx.qcc.option.compiler.ccoptions" valueType="stringList">
 									<listOptionValue builtIn="false" value="-Werror"/>
 									<listOptionValue builtIn="false" value="-Wall"/>
 									<listOptionValue builtIn="false" value="-Wextra"/>
@@ -96,6 +96,10 @@
 								<option id="com.qnx.qcc.option.compiler.includePath.974356399" name="Include Directories (-I)" superClass="com.qnx.qcc.option.compiler.includePath" valueType="includePath">
 									<listOptionValue builtIn="false" value="${QNX_TARGET}/usr/include/freetype2"/>
 									<listOptionValue builtIn="false" value="${QNX_TARGET}/../target-override/usr/include"/>
+								</option>
+								<option id="com.qnx.qcc.option.compiler.ccoptions.381454165" name="Compiler Options (-Wc,)" superClass="com.qnx.qcc.option.compiler.ccoptions" valueType="stringList">
+									<listOptionValue builtIn="false" value="-Wall"/>
+									<listOptionValue builtIn="false" value="-Wextra"/>
 								</option>
 								<inputType id="com.qnx.qcc.inputType.compiler.1485390639" superClass="com.qnx.qcc.inputType.compiler"/>
 							</tool>
