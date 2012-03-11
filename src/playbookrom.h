@@ -30,6 +30,8 @@ PlaybookRom();
 PlaybookRom(rom_type_t rtype);
 
 bool           pathExists(string dpath);
+bool           isADir(string dpath);
+
 vector<string> getRomList(void);
 const char    *getRomNext(void);  // increment up the list
 const char    *getRomPrev(void);  // decrement down the list
@@ -43,10 +45,13 @@ int            romCount() { return activeRomList_vsm.size(); };
 bool           isBadRom();
 void           setRomIndex(unsigned int idx);
 bool           extensionIsValid(string ext);
+void           saveState(void);
+void           loadState(void);
 
 private:
 
  string                  activeRomPath_m;
+ string                  cfgFilePath_m;
  vector<string>          activeRomList_vsm;
  vector<string>          extensions_vsm;
  vector<unsigned int>    badRomList_vim;

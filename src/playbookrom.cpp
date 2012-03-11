@@ -8,6 +8,8 @@
 
 #include "playbookrom.h"
 #include <dirent.h>
+#include <iostream>
+#include <fstream>
 
 
 static const char *romPath_xxx = "/accounts/1000/shared/misc/roms";
@@ -17,6 +19,7 @@ static const char *romPath_pce = "/accounts/1000/shared/misc/roms/pce";
 static const char *romPath_smd = "/accounts/1000/shared/misc/roms/smd";
 static const char *romPath_gb  = "/accounts/1000/shared/misc/roms/gb";
 
+#define DEBUG 1
 
 //*********************************************************
 //
@@ -70,8 +73,11 @@ PlaybookRom::PlaybookRom(rom_type_t rtype)
               break;
   }
 
-  // root path is now set ...
-
+  cfgFilePath_m = activeRomPath_m + "pbrom.cfg";
+#ifdef DEBUG
+  cout << "cfgFilePath_m " << cfgFilePath_m;
+#endif
+  loadState();
 }
 
 
@@ -89,12 +95,53 @@ bool PlaybookRom::extensionIsValid(string ext)
   return false;
 }
 
+
+bool PlaybookRom::isADir(string dpath)
+{
+  struct stat sb;
+
+  if (stat( dpath.c_str(), &sb) == -1)
+  {
+	perror("stat");
+	return false;
+  }
+
+  switch (sb.st_mode & S_IFMT)
+  {
+	    case S_IFBLK:  printf("block device\n");
+	                   break;
+
+	    case S_IFCHR:  printf("character device\n");
+	                   break;
+
+	    case S_IFDIR:  printf("directory\n");
+	                   return true;
+	                   break;
+
+	    case S_IFIFO:  printf("FIFO/pipe\n");               break;
+	    case S_IFLNK:  printf("symlink\n");                 break;
+	    case S_IFREG:  printf("regular file\n");            break;
+	    case S_IFSOCK: printf("socket\n");                  break;
+	    default:       printf("unknown?\n");                break;
+  }
+
+  return false;
+}
+
 //*********************************************************
 //
 //*********************************************************
 bool PlaybookRom::pathExists(string dpath)
 {
 	DIR *dp =0;
+
+	bool is_a_directory = isADir( dpath.c_str() );
+
+	if( !is_a_directory)
+	{
+	   return false;
+	}
+
 	if( (dp=opendir(dpath.c_str())) == NULL) {
 		closedir(dp);
 		return false;
@@ -121,14 +168,21 @@ void PlaybookRom::setRomPath(string dpath)
 vector<string> PlaybookRom::getRomList( void )
 {
 
-	DIR* dirp;
-	struct dirent* direntp;
+  DIR* dirp;
+  struct dirent* direntp;
 
-	if(activeRomPath_m == "")
-	{
-        activeRomList_vsm.clear();
-		return activeRomList_vsm;
-	}
+  if(activeRomPath_m == "")
+  {
+    activeRomList_vsm.clear();
+	return activeRomList_vsm;
+  }
+
+  if( !pathExists( activeRomPath_m) )
+  {
+	cout << "Directory '%s' not found ...";
+    activeRomList_vsm.clear();
+    return activeRomList_vsm;
+  }
 
   dirp = opendir( activeRomPath_m.c_str() );
   if( dirp != NULL )
@@ -139,24 +193,24 @@ vector<string> PlaybookRom::getRomList( void )
 		if( direntp == NULL )
 		  break;
 
-   	     string tmp = direntp->d_name;
+   	    string tmp = direntp->d_name;
 
-		  if( strcmp( direntp->d_name, ".") == 0)
-		  {
-			 continue;
-		  }
+		if( strcmp( direntp->d_name, ".") == 0)
+		{
+	      continue;
+		}
 
-		  if( strcmp( direntp->d_name,"..") == 0)
-		  {
-			  continue;
-		  }
-
-		  string extension = tmp.substr(tmp.find_last_of(".") +1);
-          if( extensionIsValid( extension ) == true)
-		  {
-	          fprintf(stderr,"ROM: %s\n", direntp->d_name);
-			  activeRomList_vsm.push_back(direntp->d_name);
-		  }
+		if( strcmp( direntp->d_name,"..") == 0)
+		{
+		  continue;
+		}
+        cout << tmp;
+		string extension = tmp.substr(tmp.find_last_of(".") +1);
+        if( extensionIsValid( extension ) == true)
+		{
+	      fprintf(stderr,"ROM -> %s\n", direntp->d_name);
+	      activeRomList_vsm.push_back(direntp->d_name);
+	    }
 	 }
   }
   else
@@ -165,7 +219,6 @@ vector<string> PlaybookRom::getRomList( void )
   }
 
  // sort list here .
-
  fprintf(stderr,"number of files %d\n", activeRomList_vsm.size() );
  return activeRomList_vsm;
 }
@@ -279,4 +332,47 @@ void   PlaybookRom::setRomIndex(unsigned int idx)
    activeRom_m = activeRomList_vsm[activeRomIndex_m];
 }
 
+void PlaybookRom::saveState(void)
+{
+	  unsigned int i = 0;
+	  ofstream cfgFile;
+	  cfgFile.open (cfgFilePath_m.c_str());
+	  cfgFile << activeRomIndex_m << "\n";
+	  cfgFile << activeRom_m << "\n";
+	  for( i = 0; i < activeRomList_vsm.size(); i++)
+	  {
+		 cfgFile << activeRomList_vsm[i] << "\n";
+	  }
+	  cfgFile.close();
+}
 
+void PlaybookRom::loadState(void)
+{
+     ifstream cfgFile;
+     string line;
+
+     cfgFile.open(cfgFilePath_m.c_str());
+
+     // 3
+     // spaceinvaders.gba
+     // blah1.gba
+     // ...
+
+     if (cfgFile.is_open())
+      {
+
+    	getline(cfgFile, line);
+    	//  activeRomIndex_m
+    	getline(cfgFile, line);
+    	//  activeRom_m
+
+        while ( cfgFile.good() )
+        {
+          getline ( cfgFile, line);
+          cout << line << endl;
+          // activeRomList_vsm.push_back(line);
+        }
+        cfgFile.close();
+      }
+
+}
