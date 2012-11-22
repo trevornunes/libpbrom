@@ -1,30 +1,47 @@
 /*
- * playbook_utils.cpp
- *
- *  Created on: Jan 10, 2012
- *      Author: tnunes
+ * Simple rom path retrieval and file/path checker. Used by emulators to simplify the repetitive logic
+
+   #include "rom.h"
+
+   1. Create Rom instance and directory setup /misc/roms/smd and setup config.
+
+   Rom romp = Rom( Rom::rom_smd_c );
+
+   2. Initialize/Update the rom listing
+
+   romp.updateRomList(); // read the directory looking for extension types
+                         // that match the Rom::rom_smd_c type e.g. .smd .gen .bin
+                          *
+   romp.getRomList(); // will return a vector<string> of roms.
+
+
+   3. Now that the database is stored we can get next/prev,current index
+
+   Now we can browse the rom listing ...
+
+   romp.getNextRom();  // return the next rom full path  will cycle back to start ..
+   romp.getActiveRom(); // get the current active rom
+
  */
 
 
-#include "playbookrom.h"
+#include "rom.h"
+#include "pthread.h"
 #include <dirent.h>
 #include <iostream>
 #include <fstream>
 
 
-static const char *romPath_xxx = "/accounts/1000/shared/misc/roms";
-static const char *romPath_nes = "/accounts/1000/shared/misc/roms/nes";
-static const char *romPath_gba = "/accounts/1000/shared/misc/roms/gba";
-static const char *romPath_pce = "/accounts/1000/shared/misc/roms/pce";
-static const char *romPath_smd = "/accounts/1000/shared/misc/roms/smd";
-static const char *romPath_gb  = "/accounts/1000/shared/misc/roms/gb";
+static const char *romPath_sd       = "/accounts/1000/removable/sdcard/roms";
+static const char *romPath_internal = "/accounts/1000/shared/misc/roms";
 
+pthread_mutex_t  dir_mutex = PTHREAD_MUTEX_INITIALIZER;
 #define DEBUG 1
 
 //*********************************************************
 //
 //*********************************************************
-PlaybookRom::PlaybookRom(rom_type_t rtype)
+Rom::Rom(rom_type_t rtype)
 {
   activeRom_m = "";
   activeRomPath_m = "";
@@ -32,48 +49,16 @@ PlaybookRom::PlaybookRom(rom_type_t rtype)
   romType_m = rtype;
   activeRomIndex_m =0;
 
-  switch(romType_m)
-  {
-    case rom_nes_c:
-    	 activeRomPath_m = romPath_nes;
-    	 extensions_vsm.push_back("nes");
-    	 extensions_vsm.push_back("NES");
-         break;
+  setupPath( romPath_internal );
 
-    case rom_gb_c:
-    case rom_gbc_c:
-    	 activeRomPath_m = romPath_gb;
-    	 extensions_vsm.push_back("gb");
-    	 extensions_vsm.push_back("gbc");
-    	 extensions_vsm.push_back("bin");
-    	 extensions_vsm.push_back("zip");
-    	break;
+  cfgFilePath_m = activeRomPath_m + "/pbrom.cfg";
 
-    case rom_gba_c:
-    	 activeRomPath_m = romPath_gba;
-    	 extensions_vsm.push_back("gba");
-    	 extensions_vsm.push_back("GBA");
-    	 extensions_vsm.push_back("zip");
-    	 extensions_vsm.push_back("bin");
-         break;
+  mkdir( romPath_internal, S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID);
+  chmod( romPath_internal, S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID);
 
-    case rom_pce_c:
-    	 activeRomPath_m = romPath_pce;
-    	 extensions_vsm.push_back("pce");
-    	 break;
+  mkdir( activeRomPath_m.c_str(), S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID);
+  chmod( activeRomPath_m.c_str(), S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID);
 
-    case rom_smd_c:
-    	 activeRomPath_m = romPath_smd;
-    	 extensions_vsm.push_back("smd");
-    	 extensions_vsm.push_back("gen");
-    	 extensions_vsm.push_back("bin");
-    	 break;
-
-    default:  activeRomPath_m = romPath_xxx;
-              break;
-  }
-
-  cfgFilePath_m = activeRomPath_m + "pbrom.cfg";
 #ifdef DEBUG
   cout << "cfgFilePath_m " << cfgFilePath_m;
 #endif
@@ -81,7 +66,72 @@ PlaybookRom::PlaybookRom(rom_type_t rtype)
 }
 
 
-bool PlaybookRom::extensionIsValid(string ext)
+void Rom::setupPath( string romPath )
+{
+	 switch(romType_m)
+	  {
+	    case rom_nes_c:
+	    	 activeRomPath_m = romPath + "/nes";
+	    	 extensions_vsm.push_back("nes");
+	    	 extensions_vsm.push_back("NES");
+	    	 extensions_vsm.push_back("zip");
+	    	 extensions_vsm.push_back("ZIP"); // fix this case problem
+	         break;
+
+	    case rom_gb_c:
+	    case rom_gbc_c:
+	    	 activeRomPath_m = romPath + "/gb";
+	    	 extensions_vsm.push_back("gb");
+	    	 extensions_vsm.push_back("gbc");
+	    	 extensions_vsm.push_back("bin");
+	    	 extensions_vsm.push_back("zip");
+	    	break;
+
+	    case rom_gba_c:
+	    	 activeRomPath_m = romPath + "/gba";
+	    	 extensions_vsm.push_back("gba");
+	    	 extensions_vsm.push_back("GBA");
+	    	 extensions_vsm.push_back("zip");
+	    	 extensions_vsm.push_back("bin");
+	         break;
+
+	    case rom_pce_c:
+	    	 activeRomPath_m = romPath + "/pce";
+	    	 extensions_vsm.push_back("pce");
+	    	 break;
+
+	    case rom_smd_c:
+	    	 activeRomPath_m = romPath + "/smd";
+	    	 extensions_vsm.push_back("smd");
+	    	 extensions_vsm.push_back("gen");
+	    	 extensions_vsm.push_back("bin");
+	    	 break;
+
+	    default:  activeRomPath_m = romPath;
+	              break;
+	  }
+
+}
+
+bool Rom::setupSdCard()
+{
+  if( isADir("/accounts/1000/removable/sdcard") )
+  {
+#ifdef DEBUG
+	  fprintf(stderr,"SDCARD based paths");
+#endif
+	  setupPath( romPath_sd );
+      cfgFilePath_m = activeRomPath_m + "/pbrom.cfg";
+      mkdir(romPath_sd, 0777);
+	  mkdir( activeRomPath_m.c_str(), 0777);
+	  return true;
+  }
+  return false;
+}
+
+
+
+bool Rom::extensionIsValid(string ext)
 {
   unsigned int i = 0;
   for(i =0; i < extensions_vsm.size(); i++)
@@ -96,7 +146,7 @@ bool PlaybookRom::extensionIsValid(string ext)
 }
 
 
-bool PlaybookRom::isADir(string dpath)
+bool Rom::isADir(string dpath)
 {
   struct stat sb;
 
@@ -131,7 +181,7 @@ bool PlaybookRom::isADir(string dpath)
 //*********************************************************
 //
 //*********************************************************
-bool PlaybookRom::pathExists(string dpath)
+bool Rom::pathExists(string dpath)
 {
 	DIR *dp =0;
 
@@ -153,7 +203,7 @@ bool PlaybookRom::pathExists(string dpath)
 	}
 }
 
-void PlaybookRom::setRomPath(string dpath)
+void Rom::setRomPath(string dpath)
 {
  if( pathExists(dpath) == true)
  {
@@ -165,11 +215,13 @@ void PlaybookRom::setRomPath(string dpath)
 //*********************************************************
 //
 //*********************************************************
-vector<string> PlaybookRom::getRomList( void )
+vector<string> Rom::getRomList( void )
 {
 
   DIR* dirp;
   struct dirent* direntp;
+
+  pthread_mutex_lock( &dir_mutex );
 
   if(activeRomPath_m == "")
   {
@@ -211,6 +263,10 @@ vector<string> PlaybookRom::getRomList( void )
 	      fprintf(stderr,"ROM -> %s\n", direntp->d_name);
 	      activeRomList_vsm.push_back(direntp->d_name);
 	    }
+        else
+        {
+          fprintf(stderr,"reject %s\n", direntp->d_name);
+        }
 	 }
   }
   else
@@ -218,7 +274,9 @@ vector<string> PlaybookRom::getRomList( void )
 	fprintf(stderr,"dirp is NULL ...\n");
   }
 
- // sort list here .
+  sort();
+
+  pthread_mutex_unlock( &dir_mutex );
  fprintf(stderr,"number of files %d\n", activeRomList_vsm.size() );
  return activeRomList_vsm;
 }
@@ -230,7 +288,7 @@ vector<string> PlaybookRom::getRomList( void )
 //*********************************************************
 //
 //*********************************************************
-const char *PlaybookRom::getRomNext(void)
+const char *Rom::getRomNext(void)
 {
     fprintf(stderr,"getRomNext: %d\n", romType_m);
     static char romName[128];
@@ -265,7 +323,7 @@ const char *PlaybookRom::getRomNext(void)
 //*********************************************************
 //
 //*********************************************************
-const char *PlaybookRom::getRomPrev(void)
+const char *Rom::getRomPrev(void)
 {
     fprintf(stderr,"getRomPrev: %d\n", romType_m);
     static char romName[128];
@@ -293,12 +351,12 @@ const char *PlaybookRom::getRomPrev(void)
     return romName;
 }
 
-void PlaybookRom::setActiveRomBad()
+void Rom::setActiveRomBad()
 {
   badRomList_vim.push_back( activeRomIndex_m );
 }
 
-bool PlaybookRom::isBadRom()
+bool Rom::isBadRom()
 {
   vector<unsigned int>::iterator i;
   for( i = badRomList_vim.begin(); i != badRomList_vim.end(); ++i)
@@ -309,7 +367,7 @@ bool PlaybookRom::isBadRom()
   return false;
 }
 
-string PlaybookRom::getInfoStr()
+string Rom::getInfoStr()
 {
   return activeRom_m;
 }
@@ -318,13 +376,38 @@ string PlaybookRom::getInfoStr()
 //*******************************
 //
 //*******************************
-void PlaybookRom::updateRomList(void)
+void Rom::updateRomList(void)
 {
   (void) getRomList();
+  sort();
 }
 
 
-void   PlaybookRom::setRomIndex(unsigned int idx)
+
+void Rom::sort(void)
+{
+     int swap;
+     string temp;
+
+     do
+     {
+         swap = 0;
+         for (unsigned int count = 0; count < activeRomList_vsm.size() - 1; count++)
+         {
+             if (activeRomList_vsm.at(count) > activeRomList_vsm.at(count + 1))
+             {
+                   temp = activeRomList_vsm.at(count);
+                   activeRomList_vsm.at(count) = activeRomList_vsm.at(count + 1);
+                   activeRomList_vsm.at(count + 1) = temp;
+                   swap = 1;
+             }
+         }
+     }while (swap != 0);
+}
+
+
+
+void   Rom::setRomIndex(unsigned int idx)
 {
    if( idx <= activeRomList_vsm.size() )
 	  activeRomIndex_m = idx;
@@ -332,7 +415,7 @@ void   PlaybookRom::setRomIndex(unsigned int idx)
    activeRom_m = activeRomList_vsm[activeRomIndex_m];
 }
 
-void PlaybookRom::saveState(void)
+void Rom::saveState(void)
 {
 	  unsigned int i = 0;
 	  ofstream cfgFile;
@@ -346,7 +429,7 @@ void PlaybookRom::saveState(void)
 	  cfgFile.close();
 }
 
-void PlaybookRom::loadState(void)
+void Rom::loadState(void)
 {
      ifstream cfgFile;
      string line;

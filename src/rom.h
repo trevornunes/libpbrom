@@ -1,20 +1,19 @@
-#ifndef PLAYBOOKROM_H_
-#define PLAYBOOKROM_H_
+#ifndef _ROM_H_
+#define _ROM_H_
 
-/* PlaybookRom is a class that provides ROM path setting and rom selection, iteration, cycling
+/* Rom is a class that provides file path setting and rom selection, iteration, cycling
  * It saves repeating the same type of code on multiple emulators.
  */
+using namespace std;
 #include <vector>
 #include <string>
-using namespace std;
 #include <cstdio>
 
 
 
-class PlaybookRom {
+class Rom {
 
 public:
-
 
 typedef enum {
 		rom_nes_c = 0,
@@ -25,9 +24,9 @@ typedef enum {
 		rom_smd_c
 }rom_type_t;
 
-PlaybookRom();
+Rom();
 
-PlaybookRom(rom_type_t rtype);
+Rom(rom_type_t rtype);
 
 bool           pathExists(string dpath);
 bool           isADir(string dpath);
@@ -36,6 +35,9 @@ vector<string> getRomList(void);
 const char    *getRomNext(void);  // increment up the list
 const char    *getRomPrev(void);  // decrement down the list
 void           updateRomList(void);
+void           sort(void);
+void           setupPath(string path);
+bool           setupSdCard(void);  // BB10 phones and SDCARD supporting units.
 void           setRomPath(string path);
 string         getRomPath()       { return activeRomPath_m; };
 string         getActiveRomName() { return activeRom_m; };
@@ -63,4 +65,4 @@ private:
 
 
 
-#endif /* PLAYBOOKROM_H_ */
+#endif /* _ROM_H_ */
