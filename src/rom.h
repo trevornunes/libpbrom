@@ -4,6 +4,7 @@
 /* Rom is a class that provides file path setting and rom selection, iteration, cycling
  * It saves repeating the same type of code on multiple emulators.
  */
+
 using namespace std;
 #include <vector>
 #include <string>
@@ -21,6 +22,7 @@ public:
 		rom_pce_c,
 		rom_smd_c,
 		rom_lnx_c,
+		rom_sms_c,
 		rom_max_c
 	} rom_type_t;
 
@@ -70,5 +72,31 @@ private:
 	bool isADir(string dpath);
 	void setupPath(string path);
 };
+
+
+/* most emulators are C based, so a little C wrapper is provided here.
+ * for basic browsing init, get rom listing, get the next rom in the list.
+ */
+
+enum {
+	emu_nes_c = 0,
+	emu_gb_c,
+	emu_gbc_c,
+	emu_pce_c,
+	emu_smd_c,
+	emu_lnx_c,
+	emu_sms_c,
+	emu_max_c
+};
+
+
+
+void        rombrowser_setup(int romType );
+const char *rombrowser_next(void);
+const char *rombrowser_get_rom_name(void);
+int         rombrowser_rom_count(void);
+void        rombrowser_update(void);
+
+
 
 #endif /* _ROM_H_ */

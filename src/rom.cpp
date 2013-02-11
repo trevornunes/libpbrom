@@ -30,9 +30,11 @@
 #include <errno.h>
 #include <iostream>
 #include <fstream>
+#include <cstring> // strerror
 
 static const char *romPath_sd = "/accounts/1000/removable/sdcard/roms";
 static const char *romPath_internal = "/accounts/1000/shared/misc/roms";
+
 
 pthread_mutex_t dir_mutex = PTHREAD_MUTEX_INITIALIZER;
 #define DEBUG 1
@@ -45,6 +47,7 @@ pthread_mutex_t dir_mutex = PTHREAD_MUTEX_INITIALIZER;
 //    returns:
 //*********************************************************
 Rom::Rom(rom_type_t rtype) {
+
 	activeRom_m = "";
 	activeRomPath_m = "";
 	activeRomList_vsm.clear();
@@ -55,23 +58,26 @@ Rom::Rom(rom_type_t rtype) {
 
 	cfgFilePath_m = activeRomPath_m + "/" + "pbrom.cfg";
 
-	if (mkdir(romPath_internal, S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID))
-		fprintf(stderr,"mkdir: %s\n", strerror(errno));
+	if( ! isADir( romPath_internal))
+	{
+	    if (mkdir(romPath_internal, S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID))
+		    fprintf(stderr,"mkdir: %s\n", strerror(errno));
 
-	if (chmod(romPath_internal, S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID))
-		fprintf(stderr,"chmod: %s\n", strerror(errno));
+	    if (chmod(romPath_internal, S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID))
+		    fprintf(stderr,"chmod: %s\n", strerror(errno));
+	}
 
-	if (mkdir(activeRomPath_m.c_str(), S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID))
-		fprintf(stderr,"mkdir: %s\n", strerror(errno));
+	if(! isADir( activeRomPath_m) )
+	{
+	   if (mkdir(activeRomPath_m.c_str(), S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID))
+		   fprintf(stderr,"mkdir: %s\n", strerror(errno));
 
-	if (chmod(activeRomPath_m.c_str(), S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID))
-		fprintf(stderr,"chmod: %s\n", strerror(errno));
+	   if (chmod(activeRomPath_m.c_str(), S_IRWXU | S_IRWXG | S_IRWXO | S_ISGID))
+	 	   fprintf(stderr,"chmod: %s\n", strerror(errno));
+	}
 
-
-	loadState();
-    getRomList();
-
-    fprintf(stderr,"rom list ready.");
+	// loadState();
+   // getRomList();
 }
 
 
@@ -82,9 +88,14 @@ Rom::Rom(rom_type_t rtype) {
 //     returns:  none
 //***********************************************************
 void Rom::setupPath(string romPath) {
-	switch (romType_m) {
+
+  fprintf(stderr,"setupPath\n");
+
+  switch (romType_m)
+  {
 	case rom_nes_c:
 		emuTypeStr_m = "NES";
+		fprintf(stderr,"setupPath: NES\n");
 		activeRomPath_m = romPath + "/nes";
 		extensions_vsm.push_back("nes");
 		extensions_vsm.push_back("NES");
@@ -133,7 +144,15 @@ void Rom::setupPath(string romPath) {
 		extensions_vsm.push_back("ZIP"); // fix this case problem
 		break;
 
+	case rom_sms_c:
+		emuTypeStr_m ="MasterSystem";
+		activeRomPath_m = romPath + "/sms";
+		extensions_vsm.push_back("sms");
+		extensions_vsm.push_back("gg");
+		break;
+
 	default:
+		fprintf(stderr,"emulator type not specified?\n");
 		activeRomPath_m = romPath;
 		break;
 	}
@@ -153,6 +172,7 @@ void Rom::setupPath(string romPath) {
 //     returns:  boolean
 //***********************************************************
 bool Rom::setupSdCard() {
+
 	if (isADir("/accounts/1000/removable/sdcard")) {
 #ifdef DEBUG
 		fprintf(stderr,"SDCARD based paths");
@@ -283,11 +303,10 @@ void Rom::setRomPath(string dpath) {
 //*********************************************************
 vector<string> Rom::getRomList(void) {
 
+	fprintf(stderr,"Rom::getRomList\n");
+
 	DIR* dirp;
 	struct dirent* direntp;
-
-//  pthread_mutex_lock( &dir_mutex );
-	fprintf(stderr,"getRomList ..\n");
 
 	if (activeRomPath_m == "") {
 		activeRomList_vsm.clear();
@@ -540,3 +559,60 @@ void Rom::loadState(void) {
 	}
 
 }
+
+
+Rom *romp = 0;
+void rombrowser_setup(int romType )
+{
+  fprintf(stderr,"rombrowser_setup: %d\n", romType);
+
+  if(!romp)
+      romp = new Rom( Rom::rom_type_t (romType)  );
+   fprintf(stderr,"romp = %p\n", romp);
+ // rombrowser_update();
+}
+
+const char *rombrowser_next(void)
+{
+    fprintf(stderr,"rombrowser_next:\n");
+
+	if(!romp)
+	{
+	  fprintf(stderr,"rombrowser_next: romp is NULL.\n");
+  	  return "";
+	}
+	if( rombrowser_rom_count() < 1)
+	{
+		rombrowser_update();
+	}
+
+	return romp->getRomNext();
+}
+
+const char *rombrowser_get_rom_name(void)
+{
+	fprintf(stderr,"rombrowser_get_rom_name\n");
+
+	if(romp)
+	   return romp->getActiveRomName().c_str();
+	else
+	   return "";
+}
+
+int rombrowser_rom_count(void)
+{
+	fprintf(stderr,"rombrowser_rom_count\n");
+	if(romp)
+	  return romp->romCount();
+	else
+	  return 0;
+}
+
+void rombrowser_update(void)
+{
+	fprintf(stderr,"rombrowser_update\n");
+    if(romp)
+	   romp->getRomList();
+}
+
+
